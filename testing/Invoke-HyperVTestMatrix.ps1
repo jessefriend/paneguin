@@ -281,6 +281,19 @@ function New-StagingRepoCopy {
     return $stagingParent
 }
 
+function Enable-RequiredIntegrationServices {
+    param([string]$VMName)
+
+    $requiredServices = @("Guest Service Interface")
+    foreach ($serviceName in $requiredServices) {
+        $svc = Get-VMIntegrationService -VMName $VMName -Name $serviceName -ErrorAction SilentlyContinue
+        if ($svc -and -not $svc.Enabled) {
+            Write-Host "Enabling integration service '$serviceName' on VM '$VMName'..."
+            Enable-VMIntegrationService -VMName $VMName -Name $serviceName
+        }
+    }
+}
+
 function Restore-TestVm {
     param(
         [string]$VMName,
@@ -294,6 +307,7 @@ function Restore-TestVm {
 
     $snapshot = Get-VMSnapshot -VMName $VMName -Name $CheckpointName -ErrorAction Stop
     Restore-VMSnapshot -VMSnapshot $snapshot -Confirm:$false | Out-Null
+    Enable-RequiredIntegrationServices -VMName $VMName
     Start-VM -Name $VMName | Out-Null
 }
 
