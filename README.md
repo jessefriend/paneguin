@@ -1,6 +1,6 @@
-# WSL RDP Desktop
+# Paneguin
 
-Bootstrap a Linux desktop inside WSL and connect to it from Windows over XRDP.
+Paneguin bootstraps a Linux desktop inside WSL and connects to it from Windows over XRDP.
 
 ## What This Repo Does
 
@@ -48,14 +48,14 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 If you used `setup.ps1`, run this in your normal user context:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\windows\Install-WSL-Launcher.ps1
+powershell -ExecutionPolicy Bypass -File .\windows\Install-Paneguin-Launcher.ps1
 ```
 
 That creates:
 
-- `%USERPROFILE%\Scripts\Launch-WSL-Desktop.ps1`
-- `%USERPROFILE%\Scripts\Launch-WSL-Desktop.bat`
-- `%USERPROFILE%\Desktop\WSL Desktop.lnk`
+- `%USERPROFILE%\Scripts\Launch-Paneguin.ps1`
+- `%USERPROFILE%\Scripts\Launch-Paneguin.bat`
+- `%USERPROFILE%\Desktop\Paneguin.lnk`
 
 The launcher installer will try to auto-detect the Linux username for the selected distro. If needed, you can still pass `-Distro` and `-Username` explicitly.
 
@@ -64,15 +64,15 @@ The launcher installer will try to auto-detect the Linux username for the select
 Use the desktop shortcut or run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Scripts\Launch-WSL-Desktop.ps1"
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Scripts\Launch-Paneguin.ps1"
 ```
 
 ## Repo Layout
 
 - `setup.ps1`: interactive elevated installer for the machine-level setup
 - `setup-gui.ps1`: Windows Forms wrapper around the same flow
-- `windows\Install-WSL-Launcher.ps1`: creates the per-user launchers and shortcut
-- `windows\Launch-WSL-Desktop.ps1`: template for the installed launcher
+- `windows\Install-Paneguin-Launcher.ps1`: creates the per-user launchers and shortcut
+- `windows\Launch-Paneguin.ps1`: template for the installed launcher
 - `wsl\setup.sh`: Linux-side XRDP and desktop-environment setup
 - `build-exe.ps1`: builds the optional GUI EXE with `ps2exe`
 - `package-release.ps1`: assembles a single-folder release and optional zip
@@ -97,14 +97,15 @@ The release output is written to `dist\`.
 - `xdg-open` / default-browser handling
 - Windows RDP minimize fix
 - XRDP disconnected-session persistence settings
-- session repair helper at `~/bin/wsl-desktop-repair`
+- session repair helper at `~/bin/paneguin-repair`
 
 ## Notes
 
 - The GUI flow should be started from your normal Windows user session so it can install the launcher back into that same profile after the elevated setup finishes.
 - The optional host-only XRDP restriction works best with default WSL networking. On unusual mirrored or bridged setups it may block launch until you rerun setup without that option.
-- Running `windows\Install-WSL-Launcher.ps1` manually remains the supported fallback if that final step does not happen automatically.
+- Running `windows\Install-Paneguin-Launcher.ps1` manually remains the supported fallback if that final step does not happen automatically.
 
 ## License
 
 This project is licensed under the MIT License. See `LICENSE`.
+

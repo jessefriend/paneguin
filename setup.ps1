@@ -247,7 +247,7 @@ function Install-LinuxSide {
         throw "Missing Linux setup script: $setupShWin"
     }
 
-    $setupShLinux = "/tmp/wsl-desktop-bootstrap-setup.sh"
+    $setupShLinux = "/tmp/paneguin-setup.sh"
     Copy-FileToWsl -Distro $Distro -SourceWindowsPath $setupShWin -TargetLinuxPath $setupShLinux
 
     $fallbackValue = if (Resolve-BoolParam -Value $InstallXfceFallback -Default $false) { "1" } else { "0" }
@@ -299,9 +299,10 @@ try {
     Write-Host "Machine-level setup complete." -ForegroundColor Green
     Write-Host ""
     Write-Host "Next, run the launcher installer in your normal user context:" -ForegroundColor Yellow
-    Write-Host "  powershell -ExecutionPolicy Bypass -File .\windows\Install-WSL-Launcher.ps1"
+    Write-Host "  powershell -ExecutionPolicy Bypass -File .\windows\Install-Paneguin-Launcher.ps1"
 } catch {
     Write-Host ""
     Write-Host ("ERROR: " + $_.Exception.Message) -ForegroundColor Red
     exit 1
 }
+

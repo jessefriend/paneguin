@@ -154,7 +154,7 @@ cat > "${home_dir}/bin/wsl-session-start" <<EOF
 #!/bin/sh
 set -eu
 
-LOG_FILE="${home_dir}/.wsl-desktop-session.log"
+LOG_FILE="${home_dir}/.paneguin-session.log"
 echo "---- NEW SESSION ----" > "\${LOG_FILE}"
 
 uid_val=\$(id -u)
@@ -195,17 +195,17 @@ if grep -q '^port=' /etc/xrdp/xrdp.ini; then
   sed -i "s/^port=.*/port=${PORT}/" /etc/xrdp/xrdp.ini
 fi
 
-cat > /etc/wsl-desktop-bootstrap.conf <<EOF
+cat > /etc/paneguin.conf <<EOF
 XRDP_PORT=${PORT}
 RESTRICT_XRDP_TO_WINDOWS_HOST=${RESTRICT_XRDP_TO_WINDOWS_HOST}
 EOF
-chmod 0644 /etc/wsl-desktop-bootstrap.conf
+chmod 0644 /etc/paneguin.conf
 
-cat > /usr/local/sbin/wsl-desktop-ensure-xrdp <<'EOF'
+cat > /usr/local/sbin/paneguin-ensure-xrdp <<'EOF'
 #!/bin/sh
 set -eu
 
-CONFIG_FILE="/etc/wsl-desktop-bootstrap.conf"
+CONFIG_FILE="/etc/paneguin.conf"
 XRDP_PORT=3390
 RESTRICT_XRDP_TO_WINDOWS_HOST=0
 HOST_IPS=""
@@ -292,12 +292,12 @@ if [ "${RESTRICT_XRDP_TO_WINDOWS_HOST}" = "1" ]; then
   printf '%s\n' "${HOST_IPS}"
 fi
 EOF
-chmod 0755 /usr/local/sbin/wsl-desktop-ensure-xrdp
+chmod 0755 /usr/local/sbin/paneguin-ensure-xrdp
 
-printf '%s ALL=(root) NOPASSWD: /usr/local/sbin/wsl-desktop-ensure-xrdp\n' "${LINUX_USER}" > /etc/sudoers.d/wsl-desktop-ensure-xrdp
-chmod 0440 /etc/sudoers.d/wsl-desktop-ensure-xrdp
+printf '%s ALL=(root) NOPASSWD: /usr/local/sbin/paneguin-ensure-xrdp\n' "${LINUX_USER}" > /etc/sudoers.d/paneguin-ensure-xrdp
+chmod 0440 /etc/sudoers.d/paneguin-ensure-xrdp
 
-cat > "${home_dir}/bin/wsl-desktop-repair" <<EOF
+cat > "${home_dir}/bin/paneguin-repair" <<EOF
 #!/bin/sh
 set -eu
 
@@ -314,18 +314,18 @@ pkill -f xsettingsd || true
 pkill -f polkit-kde-authentication-agent || true
 pkill -f xfce4-session || true
 
-if [ -x /usr/local/sbin/wsl-desktop-ensure-xrdp ]; then
-  sudo -n /usr/local/sbin/wsl-desktop-ensure-xrdp || true
+if [ -x /usr/local/sbin/paneguin-ensure-xrdp ]; then
+  sudo -n /usr/local/sbin/paneguin-ensure-xrdp || true
 else
   sudo service xrdp restart || sudo service xrdp start || true
 fi
 
 echo "Repaired XRDP/session state."
 echo "If it still fails, inspect:"
-echo "  tail -n 100 ${home_dir}/.wsl-desktop-session.log"
+echo "  tail -n 100 ${home_dir}/.paneguin-session.log"
 EOF
-chown "${LINUX_USER}:${LINUX_USER}" "${home_dir}/bin/wsl-desktop-repair"
-chmod +x "${home_dir}/bin/wsl-desktop-repair"
+chown "${LINUX_USER}:${LINUX_USER}" "${home_dir}/bin/paneguin-repair"
+chmod +x "${home_dir}/bin/paneguin-repair"
 
 
 if [[ -f /etc/xrdp/sesman.ini ]]; then
@@ -401,7 +401,7 @@ EOF
 fi
 
 service dbus start || true
-/usr/local/sbin/wsl-desktop-ensure-xrdp
+/usr/local/sbin/paneguin-ensure-xrdp
 
 echo ""
 echo "Installed ${desktop_name} on distro ${PRETTY_NAME} for user ${LINUX_USER}."
@@ -413,8 +413,9 @@ if [[ "${RESTRICT_XRDP_TO_WINDOWS_HOST}" == "1" ]]; then
   echo "XRDP host-only restriction is enabled."
 fi
 if [[ "${chrome_integration_configured}" == "1" ]]; then
-  echo "Chrome integration configured for the WSL desktop."
+  echo "Chrome integration configured for Paneguin."
 elif [[ "${chrome_integration_requested}" == "1" ]]; then
   echo "Chrome integration was requested, but Chrome was not found in WSL."
 fi
-echo "Session log: ${home_dir}/.wsl-desktop-session.log"
+echo "Session log: ${home_dir}/.paneguin-session.log"
+

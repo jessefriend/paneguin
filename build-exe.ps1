@@ -1,12 +1,12 @@
 [CmdletBinding()]
 param(
     [string]$InputFile = ".\setup-gui.ps1",
-    [string]$OutputFile = ".\dist\WSL-Desktop-Bootstrap.exe",
+    [string]$OutputFile = ".\dist\Paneguin.exe",
     [string]$ProductVersion = "1.0.0",
-    [string]$Title = "WSL Desktop Bootstrap",
-    [string]$Product = "WSL Desktop Bootstrap",
-    [string]$Company = "WSL Desktop Bootstrap",
-    [string]$Description = "Bootstrap a WSL desktop environment with XRDP and a Windows launcher.",
+    [string]$Title = "Paneguin",
+    [string]$Product = "Paneguin",
+    [string]$Company = "Paneguin",
+    [string]$Description = "Paneguin bootstraps a WSL desktop environment with XRDP and a Windows launcher.",
     [string]$IconFile = ".\assets\paneguin.ico",
     [switch]$InstallPs2ExeIfMissing,
     [switch]$NoConsole
@@ -85,3 +85,4 @@ Invoke-PS2EXE @ps2exeParams
 Write-Host ""
 Write-Host "Built: $OutputFile" -ForegroundColor Green
 Write-Host "Next step: run .\package-release.ps1 to assemble a distributable release folder." -ForegroundColor Green
+

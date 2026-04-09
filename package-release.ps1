@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ExePath = ".\dist\WSL-Desktop-Bootstrap.exe",
+    [string]$ExePath = ".\dist\Paneguin.exe",
     [string]$ReleaseDir = ".\dist\release",
     [switch]$ZipRelease
 )
@@ -47,9 +47,9 @@ foreach ($dirName in @("wsl","windows")) {
 
 $runBat = @"
 @echo off
-start "" "%~dp0WSL-Desktop-Bootstrap.exe"
+start "" "%~dp0Paneguin.exe"
 "@
-Set-Content -Path (Join-Path $ReleaseDir "Run-WSL-Desktop-Bootstrap.bat") -Value $runBat -Encoding ASCII
+Set-Content -Path (Join-Path $ReleaseDir "Run-Paneguin.bat") -Value $runBat -Encoding ASCII
 
 Write-Host "Release folder ready: $ReleaseDir" -ForegroundColor Green
 
@@ -61,3 +61,4 @@ if ($ZipRelease) {
     Compress-Archive -Path (Join-Path $ReleaseDir '*') -DestinationPath $zipPath
     Write-Host "Release zip ready: $zipPath" -ForegroundColor Green
 }
+

@@ -3,11 +3,11 @@ Add-Type -AssemblyName PresentationFramework
 $Distro   = "Ubuntu"
 $Port     = 3390
 $Username = ""
-$RdpPath  = Join-Path $env:TEMP "wsl-desktop.rdp"
+$RdpPath  = Join-Path $env:TEMP "paneguin.rdp"
 
 function Show-ErrorAndExit {
     param([string]$Message)
-    [System.Windows.MessageBox]::Show($Message, "WSL Desktop")
+    [System.Windows.MessageBox]::Show($Message, "Paneguin")
     exit 1
 }
 
@@ -25,7 +25,7 @@ function Run-Wsl {
 
 wsl.exe -d $Distro -- echo "Starting $Distro..." | Out-Null
 
-$prepareXrdp = Run-Wsl "if [ -x /usr/local/sbin/wsl-desktop-ensure-xrdp ]; then sudo -n /usr/local/sbin/wsl-desktop-ensure-xrdp; else pgrep -x xrdp >/dev/null || sudo service xrdp start; fi"
+$prepareXrdp = Run-Wsl "if [ -x /usr/local/sbin/paneguin-ensure-xrdp ]; then sudo -n /usr/local/sbin/paneguin-ensure-xrdp; else pgrep -x xrdp >/dev/null || sudo service xrdp start; fi"
 if ($prepareXrdp.ExitCode -ne 0) {
     Show-ErrorAndExit "Failed to prepare xrdp inside WSL.`n`nIf you enabled host-only XRDP protection, this can happen when WSL networking is unusual and the Windows host IP could not be identified.`n`nOutput:`n$($prepareXrdp.Output)"
 }

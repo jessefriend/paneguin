@@ -44,7 +44,7 @@ function Resolve-RepoRoot {
 
     while ($candidate) {
         $setupScript = Join-Path $candidate "setup.ps1"
-        $launcherInstaller = Join-Path $candidate "windows\Install-WSL-Launcher.ps1"
+        $launcherInstaller = Join-Path $candidate "windows\Install-Paneguin-Launcher.ps1"
         if ((Test-Path -LiteralPath $setupScript) -and (Test-Path -LiteralPath $launcherInstaller)) {
             return $candidate
         }
@@ -267,8 +267,8 @@ function Import-Matrix {
 function New-StagingRepoCopy {
     param([string]$RepoRoot)
 
-    $stagingParent = Join-Path ([System.IO.Path]::GetTempPath()) ("wsl-rdp-desktop-hyperv-" + [guid]::NewGuid().ToString("N"))
-    $stagingRepo = Join-Path $stagingParent "wsl-rdp-desktop"
+    $stagingParent = Join-Path ([System.IO.Path]::GetTempPath()) ("paneguin-hyperv-" + [guid]::NewGuid().ToString("N"))
+    $stagingRepo = Join-Path $stagingParent "paneguin"
     New-Item -ItemType Directory -Path $stagingRepo -Force | Out-Null
 
     foreach ($item in @(".gitignore", "LICENSE", "README.md", "build-exe.ps1", "build-release.bat", "package-release.ps1", "setup.ps1", "setup-gui.ps1", "windows", "wsl", "testing")) {
@@ -320,7 +320,7 @@ function Get-GuestRepoRoot {
     param([System.Management.Automation.Runspaces.PSSession]$Session)
 
     Invoke-Command -Session $Session -ScriptBlock {
-        Join-Path $env:USERPROFILE "Documents\wsl-rdp-desktop"
+        Join-Path $env:USERPROFILE "Documents\paneguin"
     }
 }
 
@@ -384,7 +384,7 @@ function Invoke-GuestSmokeTest {
 
         $case = $CaseJson | ConvertFrom-Json
         $scriptPath = Join-Path $GuestRepoRoot "testing\smoke-test.ps1"
-        $logDir = Join-Path $env:TEMP "wsl-rdp-desktop-tests"
+        $logDir = Join-Path $env:TEMP "paneguin-tests"
         $logPath = Join-Path $logDir ("{0}.log" -f $case.Name)
 
         New-Item -ItemType Directory -Path $logDir -Force | Out-Null
@@ -413,7 +413,7 @@ function Invoke-GuestSmokeTest {
         [pscustomobject]@{
             ExitCode       = $exitCode
             LogPath        = $logPath
-            InstallLogPath = (Join-Path $env:PUBLIC "WSL-Desktop-Bootstrap\install.log")
+            InstallLogPath = (Join-Path $env:PUBLIC "Paneguin\install.log")
             Output         = $text
         }
     } -ArgumentList $GuestRepoRoot, $caseJson
@@ -476,7 +476,7 @@ function Export-SummaryArtifacts {
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>WSL RDP Desktop Hyper-V Test Report</title>
+  <title>Paneguin Hyper-V Test Report</title>
   <style>
     body { font-family: Segoe UI, Arial, sans-serif; margin: 24px; color: #1f2937; background: #f8fafc; }
     h1 { margin-bottom: 8px; }
@@ -493,7 +493,7 @@ function Export-SummaryArtifacts {
   </style>
 </head>
 <body>
-  <h1>WSL RDP Desktop Hyper-V Test Report</h1>
+  <h1>Paneguin Hyper-V Test Report</h1>
   <p class="meta">Generated $generatedAt for VM <code>$([System.Net.WebUtility]::HtmlEncode($VMName))</code> from checkpoint <code>$([System.Net.WebUtility]::HtmlEncode($CheckpointName))</code> using profile <code>$([System.Net.WebUtility]::HtmlEncode($MatrixProfile))</code>.</p>
   <div class="cards">
     <div class="card">Cases<strong>$($Summary.Count)</strong></div>
@@ -554,7 +554,7 @@ try {
     Write-Step "Preparing staged repo copy"
     New-Item -ItemType Directory -Path $ResultsRoot -Force | Out-Null
     $stagingParent = New-StagingRepoCopy -RepoRoot $repoRoot
-    $hostStagingRepo = Join-Path $stagingParent "wsl-rdp-desktop"
+    $hostStagingRepo = Join-Path $stagingParent "paneguin"
 
     foreach ($case in $matrix) {
         $caseStart = Get-Date
@@ -631,3 +631,4 @@ Write-Host "HTML report:  $($summaryArtifacts.HtmlPath)"
 if ($summary.Status -contains "failed") {
     throw "One or more Hyper-V matrix cases failed. Review the report files under $ResultsRoot."
 }
+

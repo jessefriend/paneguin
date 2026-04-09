@@ -25,18 +25,18 @@ function Resolve-LinuxUsername {
 
 $ScriptsDir = Join-Path $env:USERPROFILE "Scripts"
 $DesktopDir = Join-Path $env:USERPROFILE "Desktop"
-$LauncherPs1 = Join-Path $ScriptsDir "Launch-WSL-Desktop.ps1"
-$LauncherBat = Join-Path $ScriptsDir "Launch-WSL-Desktop.bat"
+$LauncherPs1 = Join-Path $ScriptsDir "Launch-Paneguin.ps1"
+$LauncherBat = Join-Path $ScriptsDir "Launch-Paneguin.bat"
 $LauncherIcon = Join-Path $ScriptsDir "paneguin.ico"
-$ShortcutPath = Join-Path $DesktopDir "WSL Desktop.lnk"
+$ShortcutPath = Join-Path $DesktopDir "Paneguin.lnk"
 $ResolvedUsername = Resolve-LinuxUsername -Distro $Distro -Username $Username
 
 New-Item -ItemType Directory -Path $ScriptsDir -Force | Out-Null
 
 $sourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $sourceDir
-$ps1Template = Join-Path $sourceDir "Launch-WSL-Desktop.ps1"
-$batTemplate = Join-Path $sourceDir "Launch-WSL-Desktop.bat"
+$ps1Template = Join-Path $sourceDir "Launch-Paneguin.ps1"
+$batTemplate = Join-Path $sourceDir "Launch-Paneguin.bat"
 $iconSource = Join-Path $repoRoot "assets\paneguin.ico"
 
 if (-not (Test-Path $ps1Template)) { throw "Missing launcher template: $ps1Template" }

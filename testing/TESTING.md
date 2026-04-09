@@ -207,7 +207,7 @@ After the automated runs, I would still do these by hand:
 
 1. Run `.\setup-gui.ps1` from a normal user session and complete a full install.
 2. Run `.\setup-gui.ps1` from an elevated session and confirm the launcher warning is shown.
-3. Launch `%USERPROFILE%\Desktop\WSL Desktop.lnk` and confirm the desktop actually opens.
+3. Launch `%USERPROFILE%\Desktop\Paneguin.lnk` and confirm the desktop actually opens.
 4. Build the packaged release and test the packaged flow in a clean VM snapshot.
 
 Package build commands:
@@ -220,8 +220,8 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 
 Expected artifacts:
 
-- `dist\WSL-Desktop-Bootstrap.exe`
-- `dist\release\Run-WSL-Desktop-Bootstrap.bat`
+- `dist\Paneguin.exe`
+- `dist\release\Run-Paneguin.bat`
 - `dist\release.zip`
 
 ## Practical Minimum
@@ -234,3 +234,4 @@ If you only want the shortest useful coverage, do this:
 4. Run `.\testing\Run-FullLab.ps1 -VMName "WSL-Test-01"`.
 5. Manually test the GUI once.
 6. Manually launch the installed desktop once.
+

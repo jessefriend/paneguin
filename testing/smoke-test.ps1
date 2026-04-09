@@ -25,7 +25,7 @@ function Resolve-RepoRoot {
 
     while ($candidate) {
         $setupScript = Join-Path $candidate "setup.ps1"
-        $launcherInstaller = Join-Path $candidate "windows\Install-WSL-Launcher.ps1"
+        $launcherInstaller = Join-Path $candidate "windows\Install-Paneguin-Launcher.ps1"
         if ((Test-Path -LiteralPath $setupScript) -and (Test-Path -LiteralPath $launcherInstaller)) {
             return $candidate
         }
@@ -161,10 +161,10 @@ function Test-DistroAlreadyInstalled {
 }
 
 $repoRoot = Resolve-RepoRoot
-$launcherInstaller = Join-Path $repoRoot "windows\Install-WSL-Launcher.ps1"
-$launcherPs1 = Join-Path $env:USERPROFILE "Scripts\Launch-WSL-Desktop.ps1"
-$launcherBat = Join-Path $env:USERPROFILE "Scripts\Launch-WSL-Desktop.bat"
-$launcherShortcut = Join-Path $env:USERPROFILE "Desktop\WSL Desktop.lnk"
+$launcherInstaller = Join-Path $repoRoot "windows\Install-Paneguin-Launcher.ps1"
+$launcherPs1 = Join-Path $env:USERPROFILE "Scripts\Launch-Paneguin.ps1"
+$launcherBat = Join-Path $env:USERPROFILE "Scripts\Launch-Paneguin.bat"
+$launcherShortcut = Join-Path $env:USERPROFILE "Desktop\Paneguin.lnk"
 
 Write-Step "Preflight"
 Assert-PathExists -Path (Join-Path $repoRoot "setup.ps1") -Description "machine-level installer"
@@ -192,8 +192,8 @@ if ($TestPackaging) {
         throw "package-release.ps1 failed."
     }
 
-    Assert-PathExists -Path (Join-Path $repoRoot "dist\WSL-Desktop-Bootstrap.exe") -Description "built EXE"
-    Assert-PathExists -Path (Join-Path $repoRoot "dist\release\Run-WSL-Desktop-Bootstrap.bat") -Description "release launcher batch file"
+    Assert-PathExists -Path (Join-Path $repoRoot "dist\Paneguin.exe") -Description "built EXE"
+    Assert-PathExists -Path (Join-Path $repoRoot "dist\release\Run-Paneguin.bat") -Description "release launcher batch file"
     Assert-PathExists -Path (Join-Path $repoRoot "dist\release.zip") -Description "release zip"
 }
 
@@ -204,7 +204,7 @@ Invoke-Setup -RepoRoot $repoRoot -Distro $Distro -DesktopEnv $DesktopEnv -Instal
 Write-Step "Launcher install"
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $launcherInstaller -Distro $Distro -Port 3390
 if ($LASTEXITCODE -ne 0) {
-    throw "Install-WSL-Launcher.ps1 failed."
+    throw "Install-Paneguin-Launcher.ps1 failed."
 }
 
 Assert-PathExists -Path $launcherPs1 -Description "per-user launcher PowerShell script"
@@ -216,8 +216,8 @@ $checks = @(
     @{ Description = "xrdp package"; Command = "command -v xrdp >/dev/null" },
     @{ Description = "session starter"; Command = "test -x ~/bin/wsl-session-start" },
     @{ Description = "xsession file"; Command = "test -x ~/.xsession" },
-    @{ Description = "repair helper"; Command = "test -x ~/bin/wsl-desktop-repair" },
-    @{ Description = "XRDP helper"; Command = "test -x /usr/local/sbin/wsl-desktop-ensure-xrdp" }
+    @{ Description = "repair helper"; Command = "test -x ~/bin/paneguin-repair" },
+    @{ Description = "XRDP helper"; Command = "test -x /usr/local/sbin/paneguin-ensure-xrdp" }
 )
 
 foreach ($check in $checks) {
@@ -230,7 +230,7 @@ foreach ($check in $checks) {
 }
 
 if ($RestrictXrdpToWindowsHost) {
-    $guardCheck = Invoke-WslCommand -Distro $Distro -Command "grep -q '^RESTRICT_XRDP_TO_WINDOWS_HOST=1$' /etc/wsl-desktop-bootstrap.conf"
+    $guardCheck = Invoke-WslCommand -Distro $Distro -Command "grep -q '^RESTRICT_XRDP_TO_WINDOWS_HOST=1$' /etc/paneguin.conf"
     if ($guardCheck.ExitCode -ne 0) {
         throw "XRDP host-only restriction was requested, but the Linux config file does not show it as enabled."
     }
@@ -265,3 +265,4 @@ Write-Host "Manual checks still recommended:" -ForegroundColor Yellow
 Write-Host "  1. Run .\setup-gui.ps1 from a normal user session and verify launcher auto-install behavior."
 Write-Host "  2. Run .\setup-gui.ps1 from an elevated session and verify the manual-launcher warning appears."
 Write-Host "  3. Run the installed desktop shortcut and confirm the XRDP desktop actually opens."
+

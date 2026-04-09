@@ -49,10 +49,10 @@ function Run-Installer {
 
     $setupScript = Join-Path $scriptRoot "setup.ps1"
     $wslSetup = Join-Path $scriptRoot "wsl\setup.sh"
-    $launcherInstaller = Join-Path $scriptRoot "windows\Install-WSL-Launcher.ps1"
-    $launcherTemplate = Join-Path $scriptRoot "windows\Launch-WSL-Desktop.ps1"
+    $launcherInstaller = Join-Path $scriptRoot "windows\Install-Paneguin-Launcher.ps1"
+    $launcherTemplate = Join-Path $scriptRoot "windows\Launch-Paneguin.ps1"
 
-    $logDir = Join-Path $env:PUBLIC "WSL-Desktop-Bootstrap"
+    $logDir = Join-Path $env:PUBLIC "Paneguin"
     $logPath = Join-Path $logDir "install.log"
 
     if (-not (Test-Path $logDir)) {
@@ -76,7 +76,7 @@ originalScriptsPath: $originalScriptsPath
         if (-not (Test-Path $required)) {
             [System.Windows.Forms.MessageBox]::Show(
                 "Missing required file:`n$required",
-                "WSL Desktop Bootstrap",
+                "Paneguin",
                 [System.Windows.Forms.MessageBoxButtons]::OK,
                 [System.Windows.Forms.MessageBoxIcon]::Error
             ) | Out-Null
@@ -116,23 +116,23 @@ exit $LASTEXITCODE
         "LAUNCHER_INSTALL_SKIPPED=GUI started elevated; per-user launcher install must be run from a normal user session." | Tee-Object -FilePath $logPath -Append | Out-Null
     }
 
-    $launcherPath = Join-Path $originalScriptsPath "Launch-WSL-Desktop.ps1"
-    $shortcutPath = Join-Path $originalDesktopPath "WSL Desktop.lnk"
+    $launcherPath = Join-Path $originalScriptsPath "Launch-Paneguin.ps1"
+    $shortcutPath = Join-Path $originalDesktopPath "Paneguin.lnk"
     $hasExpectedOutput = (Test-Path $launcherPath) -and (Test-Path $shortcutPath)
     $hasLog = Test-Path $logPath
 
     if ($exitCode -eq 0 -and $hasExpectedOutput) {
         [System.Windows.Forms.MessageBox]::Show(
             "Setup finished.`n`nLauncher and shortcut created.`n`nLog:`n$logPath",
-            "WSL Desktop Bootstrap",
+            "Paneguin",
             [System.Windows.Forms.MessageBoxButtons]::OK,
             [System.Windows.Forms.MessageBoxIcon]::Information
         ) | Out-Null
     } elseif ($exitCode -eq 0 -and $launcherInstallSkipped) {
-        $msg = "Machine-level setup finished.`n`nBecause this GUI was started from an elevated session, the per-user launcher was not installed automatically.`n`nOpen a normal PowerShell window and run:`n  powershell -ExecutionPolicy Bypass -File .\windows\Install-WSL-Launcher.ps1 -Distro $Distro`n`nLog:`n$logPath"
+        $msg = "Machine-level setup finished.`n`nBecause this GUI was started from an elevated session, the per-user launcher was not installed automatically.`n`nOpen a normal PowerShell window and run:`n  powershell -ExecutionPolicy Bypass -File .\windows\Install-Paneguin-Launcher.ps1 -Distro $Distro`n`nLog:`n$logPath"
         [System.Windows.Forms.MessageBox]::Show(
             $msg,
-            "WSL Desktop Bootstrap",
+            "Paneguin",
             [System.Windows.Forms.MessageBoxButtons]::OK,
             [System.Windows.Forms.MessageBoxIcon]::Information
         ) | Out-Null
@@ -140,7 +140,7 @@ exit $LASTEXITCODE
         $msg = "Setup may not have completed successfully.`n`nExit code: $exitCode`nLauncher + shortcut found: $hasExpectedOutput`nLog exists: $hasLog`n`nLog:`n$logPath"
         [System.Windows.Forms.MessageBox]::Show(
             $msg,
-            "WSL Desktop Bootstrap",
+            "Paneguin",
             [System.Windows.Forms.MessageBoxButtons]::OK,
             [System.Windows.Forms.MessageBoxIcon]::Warning
         ) | Out-Null
@@ -189,7 +189,7 @@ function Get-SupportedDistros {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "WSL Desktop Bootstrap"
+$form.Text = "Paneguin"
 $form.Size = New-Object System.Drawing.Size(520, 470)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
@@ -309,10 +309,11 @@ $cancelBtn.Add_Click({ $form.Close() })
 if ($GuiStartedElevated) {
     [System.Windows.Forms.MessageBox]::Show(
         "This GUI was started from an elevated session.`n`nMachine-level setup will still work, but the per-user launcher will need to be installed manually from a normal Windows user session afterwards.",
-        "WSL Desktop Bootstrap",
+        "Paneguin",
         [System.Windows.Forms.MessageBoxButtons]::OK,
         [System.Windows.Forms.MessageBoxIcon]::Information
     ) | Out-Null
 }
 
 [void]$form.ShowDialog()
+
