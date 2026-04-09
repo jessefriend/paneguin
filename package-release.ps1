@@ -1,4 +1,3 @@
-
 [CmdletBinding()]
 param(
     [string]$ExePath = ".\dist\WSL-Desktop-Bootstrap.exe",
@@ -32,6 +31,11 @@ foreach ($file in @("setup.ps1","setup-gui.ps1","README.md")) {
     if (Test-Path $path) {
         Copy-Item $path $ReleaseDir -Force
     }
+}
+
+$assetsSource = Join-Path $repoRoot "assets"
+if (Test-Path $assetsSource) {
+    Copy-Item $assetsSource (Join-Path $ReleaseDir "assets") -Recurse -Force
 }
 
 foreach ($dirName in @("wsl","windows")) {

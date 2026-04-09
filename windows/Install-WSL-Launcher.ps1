@@ -27,17 +27,21 @@ $ScriptsDir = Join-Path $env:USERPROFILE "Scripts"
 $DesktopDir = Join-Path $env:USERPROFILE "Desktop"
 $LauncherPs1 = Join-Path $ScriptsDir "Launch-WSL-Desktop.ps1"
 $LauncherBat = Join-Path $ScriptsDir "Launch-WSL-Desktop.bat"
+$LauncherIcon = Join-Path $ScriptsDir "paneguin.ico"
 $ShortcutPath = Join-Path $DesktopDir "WSL Desktop.lnk"
 $ResolvedUsername = Resolve-LinuxUsername -Distro $Distro -Username $Username
 
 New-Item -ItemType Directory -Path $ScriptsDir -Force | Out-Null
 
 $sourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent $sourceDir
 $ps1Template = Join-Path $sourceDir "Launch-WSL-Desktop.ps1"
 $batTemplate = Join-Path $sourceDir "Launch-WSL-Desktop.bat"
+$iconSource = Join-Path $repoRoot "assets\paneguin.ico"
 
 if (-not (Test-Path $ps1Template)) { throw "Missing launcher template: $ps1Template" }
 if (-not (Test-Path $batTemplate)) { throw "Missing launcher template: $batTemplate" }
+if (-not (Test-Path $iconSource)) { throw "Missing launcher icon: $iconSource" }
 
 $ps1Content = Get-Content $ps1Template -Raw
 $ps1Content = $ps1Content -replace '\$Distro\s*=\s*".*?"', ('$Distro   = "{0}"' -f $Distro)
@@ -46,6 +50,7 @@ $ps1Content = $ps1Content -replace '\$Username\s*=\s*".*?"', ('$Username = "{0}"
 
 Set-Content -Path $LauncherPs1 -Value $ps1Content -Encoding UTF8
 Copy-Item $batTemplate $LauncherBat -Force
+Copy-Item $iconSource $LauncherIcon -Force
 
 $wsh = New-Object -ComObject WScript.Shell
 
@@ -56,11 +61,12 @@ if (Test-Path $ShortcutPath) {
 $shortcut = $wsh.CreateShortcut($ShortcutPath)
 $shortcut.TargetPath = $LauncherBat
 $shortcut.WorkingDirectory = $ScriptsDir
-$shortcut.IconLocation = "$env:SystemRoot\System32\netshell.dll,29"
+$shortcut.IconLocation = $LauncherIcon
 $shortcut.Save()
 Write-Host "Created:"
 Write-Host "  $LauncherPs1"
 Write-Host "  $LauncherBat"
+Write-Host "  $LauncherIcon"
 Write-Host "  $ShortcutPath"
 Write-Host ""
 Write-Host "Launcher settings:"

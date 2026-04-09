@@ -1,4 +1,3 @@
-
 [CmdletBinding()]
 param(
     [string]$InputFile = ".\setup-gui.ps1",
@@ -8,6 +7,7 @@ param(
     [string]$Product = "WSL Desktop Bootstrap",
     [string]$Company = "WSL Desktop Bootstrap",
     [string]$Description = "Bootstrap a WSL desktop environment with XRDP and a Windows launcher.",
+    [string]$IconFile = ".\assets\paneguin.ico",
     [switch]$InstallPs2ExeIfMissing,
     [switch]$NoConsole
 )
@@ -49,6 +49,16 @@ function Ensure-PathExists {
 Ensure-Ps2Exe
 Ensure-PathExists -Path $OutputFile
 
+$repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$resolvedIconFile = $null
+if (-not [string]::IsNullOrWhiteSpace($IconFile)) {
+    if ([System.IO.Path]::IsPathRooted($IconFile)) {
+        $resolvedIconFile = $IconFile
+    } else {
+        $resolvedIconFile = Join-Path $repoRoot $IconFile
+    }
+}
+
 Write-Section "Building EXE"
 $ps2exeParams = @{
     InputFile    = $InputFile
@@ -63,6 +73,11 @@ $ps2exeParams = @{
 }
 if ($NoConsole) {
     $ps2exeParams["NoConsole"] = $true
+}
+if ($resolvedIconFile -and (Test-Path $resolvedIconFile)) {
+    $ps2exeParams["IconFile"] = $resolvedIconFile
+} elseif ($resolvedIconFile) {
+    Write-Warning "Icon file not found: $resolvedIconFile. Building EXE without a custom icon."
 }
 
 Invoke-PS2EXE @ps2exeParams
