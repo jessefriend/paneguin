@@ -55,16 +55,29 @@ That creates:
 
 - `%USERPROFILE%\Scripts\Launch-Paneguin.ps1`
 - `%USERPROFILE%\Scripts\Launch-Paneguin.bat`
+- `%USERPROFILE%\Scripts\Paneguin.exe`
 - `%USERPROFILE%\Desktop\Paneguin.lnk`
+
+The installer compiles a `Paneguin.exe` by default using [ps2exe](https://github.com/MScholtes/PS2EXE). The desktop shortcut points at the `.exe`, which means you can **pin it to the taskbar** like any other app. If ps2exe is not installed, pass `-InstallPs2ExeIfMissing` to have the installer fetch it automatically:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\windows\Install-Paneguin-Launcher.ps1 -InstallPs2ExeIfMissing
+```
+
+To skip the `.exe` and fall back to the plain PowerShell shortcut (no taskbar pinning), pass `-SkipExe`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\windows\Install-Paneguin-Launcher.ps1 -SkipExe
+```
 
 The launcher installer will try to auto-detect the Linux username for the selected distro. If needed, you can still pass `-Distro` and `-Username` explicitly.
 
 ### 3. Launch the desktop
 
-Use the desktop shortcut or run:
+Use the desktop shortcut, pin `Paneguin.exe` to your taskbar, or run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Scripts\Launch-Paneguin.ps1"
+& "$env:USERPROFILE\Scripts\Paneguin.exe"
 ```
 
 ## Repo Layout

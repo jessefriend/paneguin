@@ -1,7 +1,9 @@
 param(
     [string]$Distro = "Ubuntu",
     [int]$Port = 3390,
-    [string]$Username = ""
+    [string]$Username = "",
+    [switch]$SkipExe,
+    [switch]$InstallPs2ExeIfMissing
 )
 
 function Resolve-LinuxUsername {
@@ -21,6 +23,49 @@ function Resolve-LinuxUsername {
     }
 
     return $detectedUser
+}
+
+function Build-LauncherExe {
+    param(
+        [string]$InputPs1,
+        [string]$OutputExe,
+        [string]$IconFile,
+        [switch]$InstallPs2ExeIfMissing
+    )
+
+    $cmd = Get-Command Invoke-PS2EXE -ErrorAction SilentlyContinue
+    if (-not $cmd) {
+        if (-not $InstallPs2ExeIfMissing) {
+            throw "Invoke-PS2EXE not found. Re-run with -InstallPs2ExeIfMissing, or install it manually with: Install-Module ps2exe -Scope CurrentUser"
+        }
+
+        Write-Host "Installing ps2exe module..."
+        Install-Module ps2exe -Scope CurrentUser -Force -AllowClobber
+        Import-Module ps2exe -Force
+
+        $cmd = Get-Command Invoke-PS2EXE -ErrorAction SilentlyContinue
+        if (-not $cmd) {
+            throw "ps2exe installation did not expose Invoke-PS2EXE."
+        }
+    }
+
+    $ps2exeParams = @{
+        InputFile   = $InputPs1
+        OutputFile  = $OutputExe
+        NoConsole   = $true
+        Title       = "Paneguin"
+        Product     = "Paneguin"
+        Description = "Launch Paneguin WSL desktop via XRDP"
+    }
+    if ($IconFile -and (Test-Path $IconFile)) {
+        $ps2exeParams["IconFile"] = $IconFile
+    }
+
+    Invoke-PS2EXE @ps2exeParams
+
+    if (-not (Test-Path $OutputExe)) {
+        throw "ps2exe did not produce the expected output: $OutputExe"
+    }
 }
 
 $ScriptsDir = Join-Path $env:USERPROFILE "Scripts"
@@ -64,6 +109,16 @@ foreach ($path in @($LauncherPs1, $LauncherBat, $LauncherIcon)) {
     }
 }
 
+$LauncherExe = Join-Path $ScriptsDir "Paneguin.exe"
+$builtExe = $false
+
+if (-not $SkipExe) {
+    Write-Host "Building Paneguin.exe..."
+    Build-LauncherExe -InputPs1 $LauncherPs1 -OutputExe $LauncherExe -IconFile $LauncherIcon -InstallPs2ExeIfMissing:$InstallPs2ExeIfMissing
+    Unblock-File -Path $LauncherExe -ErrorAction SilentlyContinue
+    $builtExe = $true
+}
+
 $wsh = New-Object -ComObject WScript.Shell
 
 if (Test-Path $ShortcutPath) {
@@ -71,18 +126,31 @@ if (Test-Path $ShortcutPath) {
 }
 
 $shortcut = $wsh.CreateShortcut($ShortcutPath)
-$shortcut.TargetPath = $PowerShellExe
-$shortcut.WorkingDirectory = $ScriptsDir
-$shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$LauncherPs1`""
+if ($builtExe) {
+    $shortcut.TargetPath = $LauncherExe
+    $shortcut.WorkingDirectory = $ScriptsDir
+} else {
+    $shortcut.TargetPath = $PowerShellExe
+    $shortcut.WorkingDirectory = $ScriptsDir
+    $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$LauncherPs1`""
+}
 $shortcut.IconLocation = "$LauncherIcon,0"
 $shortcut.Save()
+
 Write-Host "Created:"
 Write-Host "  $LauncherPs1"
 Write-Host "  $LauncherBat"
 Write-Host "  $LauncherIcon"
+if ($builtExe) {
+    Write-Host "  $LauncherExe"
+}
 Write-Host "  $ShortcutPath"
 Write-Host ""
 Write-Host "Launcher settings:"
 Write-Host "  Distro: $Distro"
 Write-Host "  Port: $Port"
 Write-Host "  Username: $ResolvedUsername"
+if ($builtExe) {
+    Write-Host ""
+    Write-Host "The .exe can be pinned to the taskbar or Start menu." -ForegroundColor Green
+}

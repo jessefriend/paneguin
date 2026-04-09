@@ -1,3 +1,3 @@
 @echo off
-powershell.exe -ExecutionPolicy Bypass -File "%~dp0Install-Paneguin-Launcher.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "%~dp0Install-Paneguin-Launcher.ps1" -InstallPs2ExeIfMissing
 
