@@ -1,0 +1,27 @@
+[
+  {
+    "Name": "ubuntu-xfce-basic",
+    "Distro": "Ubuntu",
+    "DesktopEnv": "xfce",
+    "ReuseExistingDistro": true,
+    "ApplyRdpMinimizeFix": true,
+    "TestPackaging": true,
+    "InstallPs2ExeIfMissing": true
+  },
+  {
+    "Name": "ubuntu-kde-fallback",
+    "Distro": "Ubuntu",
+    "DesktopEnv": "kde",
+    "ReuseExistingDistro": true,
+    "InstallXfceFallback": true,
+    "ApplyRdpMinimizeFix": true
+  },
+  {
+    "Name": "ubuntu-xfce-xrdp-guard",
+    "Distro": "Ubuntu",
+    "DesktopEnv": "xfce",
+    "ReuseExistingDistro": true,
+    "ApplyRdpMinimizeFix": true,
+    "RestrictXrdpToWindowsHost": true
+  }
+]
