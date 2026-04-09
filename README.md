@@ -1,5 +1,5 @@
 # Paneguin
-
+![alt text](./assets/paneguin.png "paneguin")
 Paneguin bootstraps a Linux desktop inside WSL and connects to it from Windows over XRDP.
 
 ## What This Repo Does
