@@ -42,6 +42,31 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($PSVersionTable.PSVersion.Major -ge 6) {
+    Write-Host "PowerShell Direct requires Windows PowerShell 5.1. Re-launching under powershell.exe..." -ForegroundColor Yellow
+    $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $MyInvocation.MyCommand.Path)
+    $argList += "-VMName", $VMName
+    $argList += "-CheckpointName", $CheckpointName
+    $argList += "-MatrixProfile", $MatrixProfile
+    $argList += "-SessionTimeoutSeconds", $SessionTimeoutSeconds
+    $argList += "-CheckpointType", $CheckpointType
+    if ($MatrixFile)       { $argList += "-MatrixFile", $MatrixFile }
+    if ($ResultsRoot)      { $argList += "-ResultsRoot", $ResultsRoot }
+    if ($MatrixProfile -eq "cartesian") {
+        $argList += "-CartesianDistros", ($CartesianDistros -join ",")
+        $argList += "-CartesianDesktopEnvironments", ($CartesianDesktopEnvironments -join ",")
+        $argList += "-CartesianVariants", ($CartesianVariants -join ",")
+    }
+    if ($RefreshCheckpoint)          { $argList += "-RefreshCheckpoint" }
+    if ($EnableNestedVirtualization) { $argList += "-EnableNestedVirtualization" }
+    if ($StartVmAfterCheckpoint)     { $argList += "-StartVmAfterCheckpoint" }
+    if ($CheckpointOnly)             { $argList += "-CheckpointOnly" }
+    if ($StopOnFailure)              { $argList += "-StopOnFailure" }
+    if ($SkipPackaging)              { $argList += "-SkipPackaging" }
+    & powershell.exe @argList
+    exit $LASTEXITCODE
+}
+
 function Write-Step {
     param([string]$Text)
     Write-Host ""

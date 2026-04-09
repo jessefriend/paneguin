@@ -33,6 +33,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($PSVersionTable.PSVersion.Major -ge 6) {
+    throw "PowerShell Direct (New-PSSession -VMName) is not supported in PowerShell $($PSVersionTable.PSVersion). Run this script from Windows PowerShell 5.1 (powershell.exe) instead of pwsh."
+}
+
 function Write-Step {
     param([string]$Text)
     Write-Host ""
@@ -319,15 +323,20 @@ function Wait-GuestSession {
     )
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $lastError = $null
+    $attempts = 0
     do {
+        $attempts++
         try {
-            return New-PSSession -VMName $VMName -Credential $GuestCredential -RunAsAdministrator -ErrorAction Stop
+            return New-PSSession -VMName $VMName -Credential $GuestCredential -ErrorAction Stop
         } catch {
+            $lastError = $_
             Start-Sleep -Seconds 5
         }
     } while ((Get-Date) -lt $deadline)
 
-    throw "Timed out waiting for PowerShell Direct connectivity to VM '$VMName'."
+    $detail = if ($lastError) { $lastError.Exception.Message } else { "unknown" }
+    throw "Timed out waiting for PowerShell Direct connectivity to VM '$VMName' after $attempts attempts ($TimeoutSeconds s). Last error: $detail"
 }
 
 function Get-GuestRepoRoot {
