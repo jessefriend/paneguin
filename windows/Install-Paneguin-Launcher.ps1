@@ -27,8 +27,8 @@ $ScriptsDir = Join-Path $env:USERPROFILE "Scripts"
 $DesktopDir = Join-Path $env:USERPROFILE "Desktop"
 $LauncherPs1 = Join-Path $ScriptsDir "Launch-Paneguin.ps1"
 $LauncherBat = Join-Path $ScriptsDir "Launch-Paneguin.bat"
-$LauncherIcon = Join-Path $ScriptsDir "paneguin.ico"
 $ShortcutPath = Join-Path $DesktopDir "Paneguin.lnk"
+$PowerShellExe = Join-Path $PSHOME "powershell.exe"
 $ResolvedUsername = Resolve-LinuxUsername -Distro $Distro -Username $Username
 
 New-Item -ItemType Directory -Path $ScriptsDir -Force | Out-Null
@@ -43,6 +43,13 @@ if (-not (Test-Path $ps1Template)) { throw "Missing launcher template: $ps1Templ
 if (-not (Test-Path $batTemplate)) { throw "Missing launcher template: $batTemplate" }
 if (-not (Test-Path $iconSource)) { throw "Missing launcher icon: $iconSource" }
 
+$iconHash = (Get-FileHash -Algorithm SHA256 -Path $iconSource).Hash.Substring(0, 12).ToLowerInvariant()
+$LauncherIcon = Join-Path $ScriptsDir ("paneguin-{0}.ico" -f $iconHash)
+
+Get-ChildItem -Path $ScriptsDir -Filter 'paneguin*.ico' -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -ne $LauncherIcon } |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+
 $ps1Content = Get-Content $ps1Template -Raw
 $ps1Content = $ps1Content -replace '\$Distro\s*=\s*".*?"', ('$Distro   = "{0}"' -f $Distro)
 $ps1Content = $ps1Content -replace '\$Port\s*=\s*\d+', ('$Port     = {0}' -f $Port)
@@ -51,6 +58,11 @@ $ps1Content = $ps1Content -replace '\$Username\s*=\s*".*?"', ('$Username = "{0}"
 Set-Content -Path $LauncherPs1 -Value $ps1Content -Encoding UTF8
 Copy-Item $batTemplate $LauncherBat -Force
 Copy-Item $iconSource $LauncherIcon -Force
+foreach ($path in @($LauncherPs1, $LauncherBat, $LauncherIcon)) {
+    if (Test-Path $path) {
+        Unblock-File -Path $path -ErrorAction SilentlyContinue
+    }
+}
 
 $wsh = New-Object -ComObject WScript.Shell
 
@@ -59,9 +71,10 @@ if (Test-Path $ShortcutPath) {
 }
 
 $shortcut = $wsh.CreateShortcut($ShortcutPath)
-$shortcut.TargetPath = $LauncherBat
+$shortcut.TargetPath = $PowerShellExe
 $shortcut.WorkingDirectory = $ScriptsDir
-$shortcut.IconLocation = $LauncherIcon
+$shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$LauncherPs1`""
+$shortcut.IconLocation = "$LauncherIcon,0"
 $shortcut.Save()
 Write-Host "Created:"
 Write-Host "  $LauncherPs1"
