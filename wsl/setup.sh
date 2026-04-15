@@ -86,10 +86,25 @@ require_commands() {
   fi
 }
 
+require_any_commands() {
+  local label="$1"
+  shift
+
+  local command_name
+  for command_name in "$@"; do
+    if command -v "${command_name}" >/dev/null 2>&1; then
+      return 0
+    fi
+  done
+
+  echo "Missing ${label}: $*"
+  return 1
+}
+
 common_packages=()
 desktop_install_candidates=()
 fallback_install_candidates=()
-common_required_commands=(xrdp dbus-launch xauth)
+common_required_commands=(xrdp xauth)
 desktop_required_commands=()
 fallback_required_commands=()
 session_command=""
@@ -145,7 +160,7 @@ case "$pm" in
         desktop_name="KDE"
         ;;
       xfce)
-        desktop_install_candidates=("@xfce-desktop-environment xfce4-terminal Thunar" "@xfce-desktop xfce4-terminal Thunar")
+        desktop_install_candidates=("@xfce-desktop-environment xfce4-terminal Thunar" "@xfce-desktop xfce4-terminal Thunar" "xfce4-session xfce4-panel xfdesktop xfwm4 xfconf exo tumbler Thunar xfce4-terminal mousepad")
         desktop_required_commands=(startxfce4 xfce4-session)
         session_command="startxfce4"
         desktop_name="XFCE"
@@ -167,7 +182,7 @@ case "$pm" in
     esac
     ;;
   zypper)
-    common_packages=(xrdp xorgxrdp xauth dbus-1-x11 xdg-utils curl wget iptables)
+    common_packages=(xrdp xorgxrdp xauth dbus-1 xdg-utils curl wget iptables)
     case "${DESKTOP_ENV}" in
       kde)
         desktop_install_candidates=("patterns-kde-kde_plasma konsole dolphin6" "patterns-kde-kde konsole dolphin6" "patterns-kde-kde konsole dolphin")
@@ -210,6 +225,7 @@ if [[ "${#fallback_install_candidates[@]}" -gt 0 ]]; then
 fi
 
 require_commands "common XRDP/X11 commands" "${common_required_commands[@]}"
+require_any_commands "DBus session helper" dbus-run-session dbus-launch
 require_commands "${desktop_name} session commands" "${desktop_required_commands[@]}"
 if [[ "${#fallback_required_commands[@]}" -gt 0 ]]; then
   require_commands "XFCE fallback session commands" "${fallback_required_commands[@]}"
@@ -236,12 +252,51 @@ rm -f /tmp/.X10-lock /tmp/.X11-unix/X10 2>/dev/null || true
 
 uid_val=\$(id -u)
 runtime_dir="/run/user/\${uid_val}"
-mkdir -p "\${runtime_dir}" 2>/dev/null || true
-chmod 700 "\${runtime_dir}" 2>/dev/null || true
+if [ ! -d "\${runtime_dir}" ] || [ ! -w "\${runtime_dir}" ]; then
+  runtime_dir="/tmp/paneguin-runtime-\${uid_val}"
+  mkdir -p "\${runtime_dir}" 2>/dev/null || true
+  chmod 700 "\${runtime_dir}" 2>/dev/null || true
+fi
 
 export XDG_RUNTIME_DIR="\${runtime_dir}"
+export XDG_SESSION_TYPE="x11"
+export GDK_BACKEND="x11"
+export QT_QPA_PLATFORM="xcb"
+
+case "${DESKTOP_ENV}" in
+  kde)
+    export DESKTOP_SESSION="plasma"
+    export XDG_CURRENT_DESKTOP="KDE"
+    export XDG_SESSION_DESKTOP="KDE"
+    export KDE_FULL_SESSION="true"
+    ;;
+  xfce)
+    export DESKTOP_SESSION="xfce"
+    export XDG_CURRENT_DESKTOP="XFCE"
+    export XDG_SESSION_DESKTOP="XFCE"
+    ;;
+  mate)
+    export DESKTOP_SESSION="mate"
+    export XDG_CURRENT_DESKTOP="MATE"
+    export XDG_SESSION_DESKTOP="MATE"
+    ;;
+  lxqt)
+    export DESKTOP_SESSION="lxqt"
+    export XDG_CURRENT_DESKTOP="LXQt"
+    export XDG_SESSION_DESKTOP="LXQt"
+    ;;
+esac
+
 unset DBUS_SESSION_BUS_ADDRESS
 unset SESSION_MANAGER
+
+echo "XDG_RUNTIME_DIR=\${XDG_RUNTIME_DIR}" >>"\${LOG_FILE}"
+echo "DESKTOP_SESSION=\${DESKTOP_SESSION:-}" >>"\${LOG_FILE}"
+echo "XDG_CURRENT_DESKTOP=\${XDG_CURRENT_DESKTOP:-}" >>"\${LOG_FILE}"
+
+if command -v dbus-run-session >/dev/null 2>&1; then
+  exec dbus-run-session -- ${session_command} >>"\${LOG_FILE}" 2>&1
+fi
 
 exec dbus-launch --exit-with-session ${session_command} >>"\${LOG_FILE}" 2>&1
 EOF
@@ -380,8 +435,11 @@ set -eu
 
 uid_val=\$(id -u)
 runtime_dir="/run/user/\${uid_val}"
-mkdir -p "\${runtime_dir}" 2>/dev/null || true
-chmod 700 "\${runtime_dir}" 2>/dev/null || true
+if [ ! -d "\${runtime_dir}" ] || [ ! -w "\${runtime_dir}" ]; then
+  runtime_dir="/tmp/paneguin-runtime-\${uid_val}"
+  mkdir -p "\${runtime_dir}" 2>/dev/null || true
+  chmod 700 "\${runtime_dir}" 2>/dev/null || true
+fi
 
 pkill -f startplasma || true
 pkill -f plasmashell || true
