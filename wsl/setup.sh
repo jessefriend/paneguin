@@ -37,14 +37,23 @@ install_pkgs() {
       apt-get install -y "$@"
       ;;
     dnf)
-      dnf install -y "$@"
+      if [[ "${dnf_refreshed:-0}" != "1" ]]; then
+        dnf clean all || true
+        dnf makecache --refresh --color=never
+        dnf_refreshed=1
+      fi
+      dnf install -y --refresh --best --allowerasing --color=never "$@"
       ;;
     zypper)
       if [[ "${zypper_refreshed:-0}" != "1" ]]; then
         zypper --non-interactive refresh
         zypper_refreshed=1
       fi
-      zypper --non-interactive install "$@"
+      if [[ "${ID:-}" == "opensuse-tumbleweed" && "${zypper_dup_done:-0}" != "1" ]]; then
+        zypper --non-interactive dup --allow-vendor-change --auto-agree-with-licenses
+        zypper_dup_done=1
+      fi
+      zypper --non-interactive --auto-agree-with-licenses install "$@"
       ;;
   esac
 }
@@ -147,7 +156,7 @@ case "$pm" in
     esac
     ;;
   dnf)
-    common_packages=(xrdp xorgxrdp xauth dbus-x11 xdg-utils curl wget iptables xorg-x11-server-Xorg)
+    common_packages=(xrdp xorgxrdp xorg-x11-xauth dbus-x11 xdg-utils curl wget iptables-nft xorg-x11-server-Xorg)
     case "${DESKTOP_ENV}" in
       kde)
         desktop_install_candidates=("@kde-desktop-environment konsole dolphin" "@kde-desktop konsole dolphin")

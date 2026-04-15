@@ -548,13 +548,24 @@ function Export-GuestWslDiagnostics {
         [string]$CaseResultDir
     )
 
-    $linuxUserResult = Invoke-GuestWslText -Session $Session -Distro $Case.Distro -Command 'id -un 2>/dev/null || true'
+    $linuxUserDetectCmd = @'
+user_name="$(getent passwd 1000 2>/dev/null | cut -d: -f1)"
+if [ -z "$user_name" ]; then
+  user_name="$(awk -F: '$3 >= 1000 && $3 < 60000 && $1 != "nobody" { print $1; exit }' /etc/passwd 2>/dev/null)"
+fi
+if [ -z "$user_name" ]; then
+  user_name="$(id -un 2>/dev/null || true)"
+fi
+printf '%s\n' "$user_name"
+'@
+    $linuxUserResult = Invoke-GuestWslText -Session $Session -Distro $Case.Distro -RunAsRoot -Command $linuxUserDetectCmd
     $linuxUser = (($linuxUserResult.Output -split "`r?`n")[0]).Trim()
     if ([string]::IsNullOrWhiteSpace($linuxUser)) {
         $linuxUser = "unknown"
     }
 
-    $homeDirResult = Invoke-GuestWslText -Session $Session -Distro $Case.Distro -Command 'printf %s "$HOME"'
+    $linuxUserForBash = $linuxUser -replace "'", "'\\''"
+    $homeDirResult = Invoke-GuestWslText -Session $Session -Distro $Case.Distro -RunAsRoot -Command ("getent passwd '$linuxUserForBash' | cut -d: -f6")
     $homeDir = $homeDirResult.Output.Trim()
     if ([string]::IsNullOrWhiteSpace($homeDir)) {
         $homeDir = "/home/$linuxUser"
@@ -569,7 +580,16 @@ function Export-GuestWslDiagnostics {
 
     $commandList = @("xrdp", "xauth", "dbus-run-session", "dbus-launch") + $desktopCommands
     $quotedCommands = ($commandList | Select-Object -Unique | ForEach-Object { "'$_'" }) -join " "
-    $commandCheckCmd = 'for c in ' + $quotedCommands + '; do if command -v "$c" >/dev/null 2>&1; then printf "%s -> %s\n" "$c" "$(command -v "$c")"; else printf "%s -> MISSING\n" "$c"; fi; done'
+    $commandCheckCmd = @"
+for c in $quotedCommands; do
+  path=`$(command -v "`$c" 2>/dev/null || true)
+  if [ -n "`$path" ]; then
+    printf '%s -> %s\n' "`$c" "`$path"
+  else
+    printf '%s -> MISSING\n' "`$c"
+  fi
+done
+"@
 
     $homeDirForBash = $homeDir -replace "'", "'\\''"
     $commandChecks = Invoke-GuestWslText -Session $Session -Distro $Case.Distro -RunAsRoot -Command $commandCheckCmd
@@ -579,7 +599,16 @@ function Export-GuestWslDiagnostics {
     $xsession = Invoke-GuestWslText -Session $Session -Distro $Case.Distro -RunAsRoot -Command ("if [ -f '$homeDirForBash/.xsession' ]; then sed -n ""1,120p"" '$homeDirForBash/.xsession'; else echo MISSING; fi")
     $paneguinSession = Invoke-GuestWslText -Session $Session -Distro $Case.Distro -RunAsRoot -Command ("if [ -f '$homeDirForBash/.paneguin-session.log' ]; then tail -n 200 '$homeDirForBash/.paneguin-session.log'; else echo MISSING; fi")
     $xsessionErrors = Invoke-GuestWslText -Session $Session -Distro $Case.Distro -RunAsRoot -Command ("if [ -f '$homeDirForBash/.xsession-errors' ]; then tail -n 200 '$homeDirForBash/.xsession-errors'; else echo MISSING; fi")
-    $xorgLog = Invoke-GuestWslText -Session $Session -Distro $Case.Distro -RunAsRoot -Command ("latest=`$(ls -1t '$homeDirForBash'/.xorgxrdp.*.log 2>/dev/null | head -n 1); if [ -n ""`$latest"" ]; then echo `$latest; tail -n 200 ""`$latest""; else echo MISSING; fi")
+    $xorgLogCmd = @"
+latest=`$(ls -1t '$homeDirForBash'/.xorgxrdp.*.log 2>/dev/null | head -n 1)
+if [ -n "`$latest" ]; then
+  printf '%s\n' "`$latest"
+  tail -n 200 "`$latest"
+else
+  echo MISSING
+fi
+"@
+    $xorgLog = Invoke-GuestWslText -Session $Session -Distro $Case.Distro -RunAsRoot -Command $xorgLogCmd
 
     $reportLines = @(
         "=== Distro ===",
