@@ -319,6 +319,9 @@ EOF
 chown "${LINUX_USER}:${LINUX_USER}" "${home_dir}/.xsession"
 chmod +x "${home_dir}/.xsession"
 
+mkdir -p /tmp/.ICE-unix
+chmod 1777 /tmp/.ICE-unix
+
 cat > /etc/xrdp/startwm.sh <<'EOF'
 #!/bin/sh
 if test -r /etc/profile; then
@@ -332,8 +335,26 @@ exec /bin/sh ~/.xsession
 EOF
 chmod +x /etc/xrdp/startwm.sh
 
-if grep -q '^port=' /etc/xrdp/xrdp.ini; then
-  sed -i "s/^port=.*/port=${PORT}/" /etc/xrdp/xrdp.ini
+if [[ -f /etc/xrdp/xrdp.ini ]]; then
+  python3 - <<PY_PORTS
+from pathlib import Path
+
+p = Path('/etc/xrdp/xrdp.ini')
+lines = p.read_text().splitlines()
+section = None
+for i, line in enumerate(lines):
+    stripped = line.strip()
+    if stripped.startswith('[') and stripped.endswith(']'):
+        section = stripped
+        continue
+    if stripped.startswith('port='):
+        if section == '[Globals]':
+            lines[i] = 'port=${PORT}'
+        elif section == '[Xorg]':
+            lines[i] = 'port=-1'
+
+p.write_text('\n'.join(lines) + '\n')
+PY_PORTS
 fi
 
 cat > /etc/paneguin.conf <<EOF

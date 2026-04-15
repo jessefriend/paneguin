@@ -2,6 +2,7 @@
 param(
     [string]$Distro = "",
     [string]$DesktopEnv = "",
+    [string]$Username = "",
     [string]$InstallXfceFallback = "",
     [string]$ApplyRdpMinimizeFix = "",
     [string]$ConfigureChromeIntegration = "",
@@ -169,32 +170,29 @@ function Ensure-DistroInstalled {
 }
 
 function Get-LinuxUsername {
-    param([string]$Distro)
+    param(
+        [string]$Distro,
+        [string]$Username = ""
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Username)) {
+        return $Username.Trim()
+    }
 
     $candidateCommands = @(
         'id -un 2>/dev/null || true',
         'getent passwd 1000 2>/dev/null | cut -d: -f1',
-        'awk -F: ''$3 >= 1000 && $3 < 60000 && $1 != "nobody" { print $1; exit }'' /etc/passwd 2>/dev/null'
+        'awk -F: ''$3 >= 1000 && $3 < 60000 && $1 != "nobody" && $1 != "root" { print $1; exit }'' /etc/passwd 2>/dev/null'
     )
 
-    $rootFallback = $null
     foreach ($command in $candidateCommands) {
         $result = & wsl.exe -d $Distro -- sh -lc $command 2>$null
         $user = ((($result | Out-String) -replace '\x00', '') -split "`r?`n")[0].Trim()
-        if ([string]::IsNullOrWhiteSpace($user)) {
-            continue
-        }
-
-        if ($user -eq 'root') {
-            $rootFallback = $user
+        if ([string]::IsNullOrWhiteSpace($user) -or $user -eq 'root') {
             continue
         }
 
         return $user
-    }
-
-    if ($rootFallback) {
-        return $rootFallback
     }
 
     if ([Environment]::UserInteractive) {
@@ -309,7 +307,7 @@ try {
     $repoRoot = Get-RepoRoot
     $distro = if ($Distro) { $Distro } else { Prompt-Distro }
     Ensure-DistroInstalled -Distro $distro
-    $linuxUser = Get-LinuxUsername -Distro $distro
+    $linuxUser = Get-LinuxUsername -Distro $distro -Username $Username
     $desktopEnv = if ($DesktopEnv) { $DesktopEnv } else { Prompt-DesktopEnvironment }
     $installXfceFallback = Resolve-BoolParam -Value $InstallXfceFallback -Default $false
     $applyRdpMinimizeFix = Resolve-BoolParam -Value $ApplyRdpMinimizeFix -Default $true
