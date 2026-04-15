@@ -248,6 +248,17 @@ fi
 
 install -d -m 0755 -o "${LINUX_USER}" -g "${LINUX_USER}" "${home_dir}/bin"
 install -d -m 0755 -o "${LINUX_USER}" -g "${LINUX_USER}" "${home_dir}/.local/share/applications"
+install -d -m 0700 -o "${LINUX_USER}" -g "${LINUX_USER}" "${home_dir}/.config"
+install -d -m 0700 -o "${LINUX_USER}" -g "${LINUX_USER}" "${home_dir}/.cache"
+install -d -m 0700 -o "${LINUX_USER}" -g "${LINUX_USER}" "${home_dir}/.local"
+install -d -m 0700 -o "${LINUX_USER}" -g "${LINUX_USER}" "${home_dir}/.local/share"
+install -d -m 0700 -o "${LINUX_USER}" -g "${LINUX_USER}" "${home_dir}/.local/state"
+install -d -m 0700 -o "${LINUX_USER}" -g "${LINUX_USER}" "${home_dir}/.local/share/kactivitymanagerd"
+install -d -m 0700 -o "${LINUX_USER}" -g "${LINUX_USER}" "${home_dir}/.local/share/kactivitymanagerd/resources"
+chown -R "${LINUX_USER}:${LINUX_USER}" "${home_dir}/.config" "${home_dir}/.cache" "${home_dir}/.local" 2>/dev/null || true
+if [[ "${DESKTOP_ENV}" == "kde" ]]; then
+  rm -f "${home_dir}/.local/share/kactivitymanagerd/resources/database"* 2>/dev/null || true
+fi
 
 cat > "${home_dir}/bin/wsl-session-start" <<EOF
 #!/bin/sh
@@ -481,6 +492,14 @@ pkill -f xfce4-session || true
 
 # Remove stale X session locks that cause a blue screen on reconnect
 rm -f /tmp/.X10-lock /tmp/.X11-unix/X10 2>/dev/null || true
+
+if [ -d "${HOME}/.config" ] || [ -d "${HOME}/.cache" ] || [ -d "${HOME}/.local" ]; then
+  chown -R "$(id -un):$(id -gn)" "${HOME}/.config" "${HOME}/.cache" "${HOME}/.local" 2>/dev/null || true
+fi
+
+if [ -d "${HOME}/.local/share/kactivitymanagerd" ]; then
+  rm -f "${HOME}/.local/share/kactivitymanagerd/resources/database"* 2>/dev/null || true
+fi
 
 if [ -x /usr/local/sbin/paneguin-ensure-xrdp ]; then
   sudo -n /usr/local/sbin/paneguin-ensure-xrdp || true
