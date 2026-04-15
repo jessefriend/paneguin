@@ -204,7 +204,22 @@ Write-Host "If this is a brand-new distro install, expect a manual Linux first-r
 Invoke-Setup -RepoRoot $repoRoot -Distro $Distro -DesktopEnv $DesktopEnv -InstallXfceFallback:$InstallXfceFallback -ApplyRdpMinimizeFix:$ApplyRdpMinimizeFix -ConfigureChromeIntegration:$ConfigureChromeIntegration -RestrictXrdpToWindowsHost:$RestrictXrdpToWindowsHost
 
 Write-Step "Launcher install"
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $launcherInstaller -Distro $Distro -Port 3390
+$launcherArgs = @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", $launcherInstaller,
+    "-Distro", $Distro,
+    "-Port", "3390"
+)
+if ($TestPackaging) {
+    if ($InstallPs2ExeIfMissing) {
+        $launcherArgs += "-InstallPs2ExeIfMissing"
+    }
+} else {
+    $launcherArgs += "-SkipExe"
+}
+
+& powershell.exe @launcherArgs
 if ($LASTEXITCODE -ne 0) {
     throw "Install-Paneguin-Launcher.ps1 failed."
 }
@@ -216,7 +231,7 @@ Assert-PathExists -Path $launcherShortcut -Description "desktop shortcut"
 Write-Step "WSL-side validation"
 $checks = @(
     @{ Description = "xrdp package"; Command = "command -v xrdp >/dev/null" },
-    @{ Description = "dbus-launch"; Command = "command -v dbus-launch >/dev/null" },
+    @{ Description = "DBus session helper"; Command = "command -v dbus-run-session >/dev/null || command -v dbus-launch >/dev/null" },
     @{ Description = "xauth"; Command = "command -v xauth >/dev/null" },
     @{ Description = "session starter"; Command = "test -x ~/bin/wsl-session-start" },
     @{ Description = "xsession file"; Command = "test -x ~/.xsession" },
