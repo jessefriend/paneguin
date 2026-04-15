@@ -59,7 +59,7 @@ function Ensure-WSL {
 }
 
 function Get-InstalledDistros {
-    $raw = (& wsl.exe -l -q 2>$null) | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    $raw = (& wsl.exe -l -q 2>$null) | ForEach-Object { $_ -replace '\x00', '' } | ForEach-Object { $_.Trim() } | Where-Object { $_ }
     return @($raw)
 }
 
@@ -68,7 +68,7 @@ function Get-OnlineDistros {
     $names = @()
 
     foreach ($line in $raw) {
-        $trim = $line.Trim()
+        $trim = ($line -replace '\x00', '').Trim()
         if (-not $trim) { continue }
         $name = ($trim -split '\s+')[0]
         if ($name -match $SupportedDistroPattern) {
@@ -153,8 +153,8 @@ function Prompt-DesktopEnvironment {
 function Ensure-DistroInstalled {
     param([string]$Distro)
 
-    $installed = Get-InstalledDistros
-    if ($installed -contains $Distro) {
+    $check = (& wsl.exe -d $Distro -- sh -c "echo 'installed'" 2>$null) | Out-String
+    if ($check.Trim() -eq "installed") {
         Write-Host "WSL distro already installed: $Distro" -ForegroundColor Green
         return
     }
@@ -163,18 +163,48 @@ function Ensure-DistroInstalled {
     & wsl.exe --install -d $Distro
     Write-Host ""
     Write-Host "If this was the first launch of the distro, complete the Linux username/password setup in the WSL window." -ForegroundColor Yellow
-    Read-Host "Press Enter here after the distro has finished first-run setup"
+    if ([Environment]::UserInteractive) {
+        Read-Host "Press Enter here after the distro has finished first-run setup"
+    }
 }
 
 function Get-LinuxUsername {
     param([string]$Distro)
 
-    $result = & wsl.exe -d $Distro -- sh -lc "id -un" 2>$null
-    $user = ($result | Out-String).Trim()
-    if (-not $user) {
-        $user = Read-Host "Could not detect the Linux username automatically. Enter the Linux username for distro '$Distro'"
+    $candidateCommands = @(
+        'id -un 2>/dev/null || true',
+        'getent passwd 1000 2>/dev/null | cut -d: -f1',
+        'awk -F: ''$3 >= 1000 && $3 < 60000 && $1 != "nobody" { print $1; exit }'' /etc/passwd 2>/dev/null'
+    )
+
+    $rootFallback = $null
+    foreach ($command in $candidateCommands) {
+        $result = & wsl.exe -d $Distro -- sh -lc $command 2>$null
+        $user = ((($result | Out-String) -replace '\x00', '') -split "`r?`n")[0].Trim()
+        if ([string]::IsNullOrWhiteSpace($user)) {
+            continue
+        }
+
+        if ($user -eq 'root') {
+            $rootFallback = $user
+            continue
+        }
+
+        return $user
     }
-    return $user
+
+    if ($rootFallback) {
+        return $rootFallback
+    }
+
+    if ([Environment]::UserInteractive) {
+        $user = Read-Host "Could not detect the Linux username automatically. Enter the Linux username for distro '$Distro'"
+        if (-not [string]::IsNullOrWhiteSpace($user)) {
+            return $user.Trim()
+        }
+    }
+
+    throw "Could not detect the Linux username for distro '$Distro'. Run interactively or pass -Username."
 }
 
 function Get-RepoRoot {
@@ -253,10 +283,23 @@ function Install-LinuxSide {
     $fallbackValue = if (Resolve-BoolParam -Value $InstallXfceFallback -Default $false) { "1" } else { "0" }
     $chromeValue = if (Resolve-BoolParam -Value $ConfigureChromeIntegration -Default $false) { "1" } else { "0" }
     $xrdpGuardValue = if (Resolve-BoolParam -Value $RestrictXrdpToWindowsHost -Default $false) { "1" } else { "0" }
-    $bashCommand = "chmod +x $setupShLinux ; DESKTOP_ENV='$DesktopEnv' LINUX_USER='$LinuxUser' INSTALL_XFCE_FALLBACK='$fallbackValue' CONFIGURE_CHROME_INTEGRATION='$chromeValue' RESTRICT_XRDP_TO_WINDOWS_HOST='$xrdpGuardValue' sudo bash $setupShLinux"
+    if ([string]::IsNullOrWhiteSpace($LinuxUser)) {
+        throw "Could not determine a Linux username for distro '$Distro'."
+    }
+
+    $installLogDir = Join-Path $env:PUBLIC "Paneguin"
+    $installLogPath = Join-Path $installLogDir "install.log"
+    New-Item -ItemType Directory -Path $installLogDir -Force | Out-Null
+
+    $bashCommand = "chmod +x '$setupShLinux' ; DESKTOP_ENV='$DesktopEnv' LINUX_USER='$LinuxUser' INSTALL_XFCE_FALLBACK='$fallbackValue' CONFIGURE_CHROME_INTEGRATION='$chromeValue' RESTRICT_XRDP_TO_WINDOWS_HOST='$xrdpGuardValue' bash '$setupShLinux'"
 
     Write-Section "Running Linux-side installer"
-    & wsl.exe -d $Distro -- bash -lc $bashCommand
+    Write-Host "Using Linux user: $LinuxUser" -ForegroundColor DarkGray
+    & wsl.exe -u root -d $Distro -- bash -lc $bashCommand 2>&1 | Tee-Object -FilePath $installLogPath
+    $linuxExitCode = $LASTEXITCODE
+    if ($linuxExitCode -ne 0) {
+        throw "Linux-side installer failed for distro '$Distro' with exit code $linuxExitCode."
+    }
 }
 
 try {

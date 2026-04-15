@@ -153,8 +153,8 @@ function Test-DistroAlreadyInstalled {
     }
 
     try {
-        $installed = (& wsl.exe -l -q 2>$null) | ForEach-Object { $_.Trim() } | Where-Object { $_ }
-        return $installed -contains $Distro
+        $check = (& wsl.exe -d $Distro -- sh -c "echo 'installed'" 2>$null) | Out-String
+        return $check.Trim() -eq "installed"
     } catch {
         return $false
     }
@@ -182,12 +182,14 @@ if (-not $ReuseExistingDistro -and (Test-DistroAlreadyInstalled -Distro $Distro)
 
 if ($TestPackaging) {
     Write-Step "Packaging"
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot "build-exe.ps1") -InstallPs2ExeIfMissing:$InstallPs2ExeIfMissing -NoConsole
+    $buildCmd = "& '$(Join-Path $repoRoot "build-exe.ps1")' -NoConsole"
+    if ($InstallPs2ExeIfMissing) { $buildCmd += " -InstallPs2ExeIfMissing" }    
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $buildCmd      
     if ($LASTEXITCODE -ne 0) {
         throw "build-exe.ps1 failed."
     }
 
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot "package-release.ps1") -ZipRelease
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& '$(Join-Path $repoRoot "package-release.ps1")' -ZipRelease"
     if ($LASTEXITCODE -ne 0) {
         throw "package-release.ps1 failed."
     }
@@ -214,6 +216,8 @@ Assert-PathExists -Path $launcherShortcut -Description "desktop shortcut"
 Write-Step "WSL-side validation"
 $checks = @(
     @{ Description = "xrdp package"; Command = "command -v xrdp >/dev/null" },
+    @{ Description = "dbus-launch"; Command = "command -v dbus-launch >/dev/null" },
+    @{ Description = "xauth"; Command = "command -v xauth >/dev/null" },
     @{ Description = "session starter"; Command = "test -x ~/bin/wsl-session-start" },
     @{ Description = "xsession file"; Command = "test -x ~/.xsession" },
     @{ Description = "repair helper"; Command = "test -x ~/bin/paneguin-repair" },
@@ -224,6 +228,44 @@ foreach ($check in $checks) {
     $result = Invoke-WslCommand -Distro $Distro -Command $check.Command
     if ($result.ExitCode -ne 0) {
         throw "WSL validation failed for $($check.Description). Output: $($result.Output)"
+    }
+
+    Write-Host "OK: $($check.Description)" -ForegroundColor Green
+}
+
+$desktopChecks = switch ($DesktopEnv) {
+    "kde" {
+        @(
+            @{ Description = "KDE session command"; Command = "command -v startplasma-x11 >/dev/null" },
+            @{ Description = "KDE shell"; Command = "command -v plasmashell >/dev/null" }
+        )
+    }
+    "xfce" {
+        @(
+            @{ Description = "XFCE session command"; Command = "command -v startxfce4 >/dev/null" },
+            @{ Description = "XFCE session manager"; Command = "command -v xfce4-session >/dev/null" }
+        )
+    }
+    "mate" {
+        @(
+            @{ Description = "MATE session command"; Command = "command -v mate-session >/dev/null" },
+            @{ Description = "MATE window manager"; Command = "command -v marco >/dev/null" },
+            @{ Description = "MATE panel"; Command = "command -v mate-panel >/dev/null" }
+        )
+    }
+    "lxqt" {
+        @(
+            @{ Description = "LXQt session command"; Command = "command -v startlxqt >/dev/null" },
+            @{ Description = "LXQt window manager"; Command = "command -v openbox >/dev/null" },
+            @{ Description = "LXQt panel"; Command = "command -v lxqt-panel >/dev/null" }
+        )
+    }
+}
+
+foreach ($check in $desktopChecks) {
+    $result = Invoke-WslCommand -Distro $Distro -Command $check.Command
+    if ($result.ExitCode -ne 0) {
+        throw "WSL desktop validation failed for $($check.Description). Output: $($result.Output)"
     }
 
     Write-Host "OK: $($check.Description)" -ForegroundColor Green
@@ -265,4 +307,3 @@ Write-Host "Manual checks still recommended:" -ForegroundColor Yellow
 Write-Host "  1. Run .\setup-gui.ps1 from a normal user session and verify launcher auto-install behavior."
 Write-Host "  2. Run .\setup-gui.ps1 from an elevated session and verify the manual-launcher warning appears."
 Write-Host "  3. Run the installed desktop shortcut and confirm the XRDP desktop actually opens."
-

@@ -29,7 +29,12 @@ function Ensure-Ps2Exe {
     }
 
     Write-Section "Installing ps2exe"
-    Install-Module ps2exe -Scope CurrentUser -Force -AllowClobber
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser -Confirm:$false | Out-Null
+    if (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue) {
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+    }
+    Install-Module ps2exe -Repository PSGallery -Scope CurrentUser -Force -AllowClobber -Confirm:$false
     Import-Module ps2exe -Force
 
     $cmd = Get-Command Invoke-PS2EXE -ErrorAction SilentlyContinue
@@ -46,23 +51,36 @@ function Ensure-PathExists {
     }
 }
 
-Ensure-Ps2Exe
-Ensure-PathExists -Path $OutputFile
-
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+function Resolve-RepoPath {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $Path
+    }
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return $Path
+    }
+
+    return Join-Path $repoRoot $Path
+}
+
+$resolvedInputFile = Resolve-RepoPath -Path $InputFile
+$resolvedOutputFile = Resolve-RepoPath -Path $OutputFile
+
+Ensure-Ps2Exe
+Ensure-PathExists -Path $resolvedOutputFile
+
 $resolvedIconFile = $null
 if (-not [string]::IsNullOrWhiteSpace($IconFile)) {
-    if ([System.IO.Path]::IsPathRooted($IconFile)) {
-        $resolvedIconFile = $IconFile
-    } else {
-        $resolvedIconFile = Join-Path $repoRoot $IconFile
-    }
+    $resolvedIconFile = Resolve-RepoPath -Path $IconFile
 }
 
 Write-Section "Building EXE"
 $ps2exeParams = @{
-    InputFile    = $InputFile
-    OutputFile   = $OutputFile
+    InputFile    = $resolvedInputFile
+    OutputFile   = $resolvedOutputFile
     Title        = $Title
     Product      = $Product
     Company      = $Company
@@ -83,6 +101,6 @@ if ($resolvedIconFile -and (Test-Path $resolvedIconFile)) {
 Invoke-PS2EXE @ps2exeParams
 
 Write-Host ""
-Write-Host "Built: $OutputFile" -ForegroundColor Green
+Write-Host "Built: $resolvedOutputFile" -ForegroundColor Green
 Write-Host "Next step: run .\package-release.ps1 to assemble a distributable release folder." -ForegroundColor Green
 

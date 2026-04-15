@@ -40,7 +40,12 @@ function Build-LauncherExe {
         }
 
         Write-Host "Installing ps2exe module..."
-        Install-Module ps2exe -Scope CurrentUser -Force -AllowClobber
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser -Confirm:$false | Out-Null
+        if (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue) {
+            Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+        }
+        Install-Module ps2exe -Repository PSGallery -Scope CurrentUser -Force -AllowClobber -Confirm:$false
         Import-Module ps2exe -Force
 
         $cmd = Get-Command Invoke-PS2EXE -ErrorAction SilentlyContinue

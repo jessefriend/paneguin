@@ -275,7 +275,7 @@ function New-StagingRepoCopy {
     $stagingRepo = Join-Path $stagingParent "paneguin"
     New-Item -ItemType Directory -Path $stagingRepo -Force | Out-Null
 
-    foreach ($item in @(".gitignore", "LICENSE", "README.md", "build-exe.ps1", "build-release.bat", "package-release.ps1", "setup.ps1", "setup-gui.ps1", "windows", "wsl", "testing")) {
+    foreach ($item in @(".gitignore", "LICENSE", "README.md", "assets", "build-exe.ps1", "build-release.bat", "package-release.ps1", "setup.ps1", "setup-gui.ps1", "windows", "wsl", "testing")) {
         $source = Join-Path $RepoRoot $item
         if (Test-Path -LiteralPath $source) {
             Copy-Item -LiteralPath $source -Destination $stagingRepo -Recurse -Force
@@ -382,9 +382,25 @@ function Test-GuestDistros {
         return
     }
 
-    $installed = Invoke-Command -Session $Session -ScriptBlock {
-        (& wsl.exe -l -q 2>$null) | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    $debugInfo = Invoke-Command -Session $Session -ScriptBlock {
+        $raw = & wsl.exe -l -q 2>&1
+        $rawText = ($raw | Out-String)
+        $cleaned = ($raw | ForEach-Object { $_ -replace '\x00','' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        [pscustomobject]@{
+            RawBytes   = [System.Text.Encoding]::Unicode.GetBytes($rawText) | Select-Object -First 80
+            RawText    = $rawText
+            Cleaned    = $cleaned
+            ExitCode   = $LASTEXITCODE
+            WslPath    = (Get-Command wsl.exe -ErrorAction SilentlyContinue).Source
+            User       = $env:USERNAME
+        }
     }
+
+    Write-Host "  WSL debug: user=$($debugInfo.User), wsl=$($debugInfo.WslPath), exit=$($debugInfo.ExitCode)" -ForegroundColor DarkGray
+    Write-Host "  WSL raw output: [$($debugInfo.RawText.Trim())]" -ForegroundColor DarkGray
+    Write-Host "  WSL cleaned distros: [$($debugInfo.Cleaned -join ', ')]" -ForegroundColor DarkGray
+
+    $installed = $debugInfo.Cleaned
 
     foreach ($distro in $requiredDistros) {
         if ($installed -notcontains $distro) {
@@ -397,49 +413,91 @@ function Invoke-GuestSmokeTest {
     param(
         [System.Management.Automation.Runspaces.PSSession]$Session,
         [string]$GuestRepoRoot,
-        [object]$Case
+        [object]$Case,
+        [pscredential]$GuestCredential
     )
 
     $caseJson = $Case | ConvertTo-Json -Depth 10 -Compress
+    $password = $GuestCredential.GetNetworkCredential().Password
+    $rawUser = $GuestCredential.UserName
 
     Invoke-Command -Session $Session -ScriptBlock {
-        param($GuestRepoRoot, $CaseJson)
+        param($GuestRepoRoot, $CaseJson, $TaskUser, $TaskPassword)
+
+        # Scheduled task principal requires MACHINENAME\username format
+        if ($TaskUser -notmatch '\\') {
+            $TaskUser = "$env:COMPUTERNAME\$TaskUser"
+        }
 
         $case = $CaseJson | ConvertFrom-Json
         $scriptPath = Join-Path $GuestRepoRoot "testing\smoke-test.ps1"
         $logDir = Join-Path $env:TEMP "paneguin-tests"
         $logPath = Join-Path $logDir ("{0}.log" -f $case.Name)
+        $taskOutputPath = Join-Path $logDir ("{0}-task-output.log" -f $case.Name)
 
         New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 
-        $argList = @(
-            "-NoProfile",
-            "-ExecutionPolicy", "Bypass",
-            "-File", $scriptPath,
+        $argTokens = @(
             "-Distro", $case.Distro,
             "-DesktopEnv", $case.DesktopEnv
         )
 
-        if ($case.ReuseExistingDistro) { $argList += "-ReuseExistingDistro" }
-        if ($case.InstallXfceFallback) { $argList += "-InstallXfceFallback" }
-        if ($case.ApplyRdpMinimizeFix) { $argList += "-ApplyRdpMinimizeFix" }
-        if ($case.ConfigureChromeIntegration) { $argList += "-ConfigureChromeIntegration" }
-        if ($case.RestrictXrdpToWindowsHost) { $argList += "-RestrictXrdpToWindowsHost" }
-        if ($case.TestPackaging) { $argList += "-TestPackaging" }
-        if ($case.InstallPs2ExeIfMissing) { $argList += "-InstallPs2ExeIfMissing" }
+        if ($case.ReuseExistingDistro) { $argTokens += "-ReuseExistingDistro" }
+        if ($case.InstallXfceFallback) { $argTokens += "-InstallXfceFallback" }
+        if ($case.ApplyRdpMinimizeFix) { $argTokens += "-ApplyRdpMinimizeFix" }
+        if ($case.ConfigureChromeIntegration) { $argTokens += "-ConfigureChromeIntegration" }
+        if ($case.RestrictXrdpToWindowsHost) { $argTokens += "-RestrictXrdpToWindowsHost" }
+        if ($case.TestPackaging) { $argTokens += "-TestPackaging" }
+        if ($case.InstallPs2ExeIfMissing) { $argTokens += "-InstallPs2ExeIfMissing" }
 
-        $output = & powershell.exe @argList 2>&1
-        $exitCode = $LASTEXITCODE
-        $text = ($output | Out-String)
-        Set-Content -Path $logPath -Value $text -Encoding UTF8
+                $argTokenString = $argTokens -join " "
+                $psArgs = "-NoProfile -ExecutionPolicy Bypass -Command `"& '$scriptPath' $argTokenString *> '$taskOutputPath'`""
+                $taskTimeoutMinutes = if ($case.TestPackaging -or $case.DesktopEnv -eq "kde") { 30 } else { 20 }
+
+        # Use a scheduled task to run elevated, bypassing UAC without a desktop.
+        # Note: -User/-Password on Register-ScheduledTask is mutually exclusive with -Principal.
+        $taskName = "PaneguinSmokeTest"
+                $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $psArgs
+                $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+        Register-ScheduledTask -TaskName $taskName -Action $action -Settings $settings `
+            -User $TaskUser -Password $TaskPassword -RunLevel Highest -Force | Out-Null
+
+        # Start the task with the credential (required for Password logon type)
+        Start-ScheduledTask -TaskName $taskName
+
+        # Wait for the task to complete (with timeout)
+        $taskDeadline = (Get-Date).AddMinutes($taskTimeoutMinutes)
+        do {
+            Start-Sleep -Seconds 5
+            $taskInfo = Get-ScheduledTaskInfo -TaskName $taskName -ErrorAction SilentlyContinue
+            $taskState = (Get-ScheduledTask -TaskName $taskName).State
+            if ((Get-Date) -gt $taskDeadline) {
+                Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+                break
+            }
+        } while ($taskState -eq "Running")
+
+        $timedOut = (Get-Date) -gt $taskDeadline
+        $exitCode = if ($timedOut) { 99 } elseif ($taskInfo.LastTaskResult) { $taskInfo.LastTaskResult } else { 0 }
+
+        $text = ""
+        if (Test-Path $taskOutputPath) {
+            $text = Get-Content -Path $taskOutputPath -Raw -ErrorAction SilentlyContinue
+            Set-Content -Path $logPath -Value $text -Encoding UTF8
+        }
+
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
         [pscustomobject]@{
             ExitCode       = $exitCode
             LogPath        = $logPath
             InstallLogPath = (Join-Path $env:PUBLIC "Paneguin\install.log")
             Output         = $text
+            TimedOut       = $timedOut
+            TimeoutMinutes = $taskTimeoutMinutes
         }
-    } -ArgumentList $GuestRepoRoot, $caseJson
+    } -ArgumentList $GuestRepoRoot, $caseJson, $rawUser, $password
 }
 
 function Copy-GuestFileIfPresent {
@@ -569,6 +627,34 @@ if ($matrix.Count -eq 0) {
     throw "The test matrix is empty."
 }
 
+Write-Step "Validating guest credentials"
+$vm = Get-VM -Name $VMName -ErrorAction Stop
+if ($vm.State -ne "Running") {
+    Write-Host "Starting VM '$VMName' temporarily to validate credentials..."
+    Start-VM -Name $VMName | Out-Null
+}
+$credCheckDeadline = (Get-Date).AddSeconds(60)
+$credSession = $null
+$lastCredError = $null
+Write-Host "Waiting for VM to accept connections (up to 60 s)..."
+do {
+    try {
+        $credSession = New-PSSession -VMName $VMName -Credential $GuestCredential -ErrorAction Stop
+        break
+    } catch {
+        $lastCredError = $_.Exception.Message
+        Start-Sleep -Seconds 3
+    }
+} while ((Get-Date) -lt $credCheckDeadline)
+
+if (-not $credSession) {
+    Stop-VM -Name $VMName -TurnOff -Force -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+    throw "Credential pre-flight failed - cannot connect to VM '$VMName'. Last error: $lastCredError`n`nTips:`n  - Use the local account username only (no domain prefix)`n  - The account must be a local administrator with a non-blank password`n  - Test manually: powershell.exe -NoProfile -Command `"New-PSSession -VMName '$VMName' -Credential (Get-Credential)`""
+}
+Remove-PSSession -Session $credSession -ErrorAction SilentlyContinue
+Write-Host "Credentials verified OK." -ForegroundColor Green
+Stop-VM -Name $VMName -TurnOff -Force -Confirm:$false | Out-Null
+
 $stagingParent = $null
 $session = $null
 $summary = @()
@@ -595,10 +681,14 @@ try {
             Copy-RepoToGuest -Session $session -HostStagingRepo $hostStagingRepo -GuestRepoRoot $guestRepoRoot
             Test-GuestDistros -Session $session -Cases @($case)
 
-            $guestResult = Invoke-GuestSmokeTest -Session $session -GuestRepoRoot $guestRepoRoot -Case $case
+            $guestResult = Invoke-GuestSmokeTest -Session $session -GuestRepoRoot $guestRepoRoot -Case $case -GuestCredential $GuestCredential
             $guestResult.Output | Set-Content -Path (Join-Path $caseResultDir "console-output.txt") -Encoding UTF8
             Copy-GuestFileIfPresent -Session $session -GuestPath $guestResult.LogPath -DestinationPath (Join-Path $caseResultDir "guest-smoke-test.log")
             Copy-GuestFileIfPresent -Session $session -GuestPath $guestResult.InstallLogPath -DestinationPath (Join-Path $caseResultDir "guest-install.log")
+
+            if ($guestResult.TimedOut) {
+                throw "Guest smoke test timed out after $($guestResult.TimeoutMinutes) minutes."
+            }
 
             if ($guestResult.ExitCode -ne 0) {
                 throw "Guest smoke test failed with exit code $($guestResult.ExitCode)."
